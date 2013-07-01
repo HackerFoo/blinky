@@ -1,40 +1,57 @@
-module blinky (button, clk_50mhz, led);
+module blinky (button, clk_50mhz, led, pwm_led);
    input button;
    input clk_50mhz;
-   output [7:0] led;
-   reg [7:0] 	count;
-   reg [21:0] 	div;
+   output [6:0] led;
+	output pwm_led;
+   reg [6:0] count;
+	reg [7:0] pwm_count;
+   reg [19:0] 	div;
    reg [2:0] 	hold;
-   wire 	clk_12hz;
+	reg [5:0] display_timer;
+   wire 	clk_slow;
 
    // NOTE: button and LEDs are inverted
    //   i.e. button depressed => 0, LED on => 0
 
-   assign led = ~count;
+   assign led = display_timer != 6'b0 ? ~count : (pwm_count[7] ? 6'b0 : ~6'b0);
+	assign pwm_led = ~pwm_count[7];
 
    // button counter with debouncing logic
    // holding the button causes the counter
    // to automatically increment
-   always @ (posedge clk_12hz)
+   always @ (posedge clk_slow)
      begin
 	if(~button)
 	  case(hold)
 	    0: begin
-	       count = count + 1;
+	       count = count + 7'b1;
 	       hold = 1;
 	    end
-	    7: count = count + 1;
-	    default: hold = hold + 1;
+	    7: count = count + 7'b1;
+	    default: hold = hold + 3'b1;
 	  endcase
-	else hold = 0;
+	else hold = 3'b0;
      end
+	  
+	always @ (posedge clk_slow)
+	begin
+		if(~button) display_timer = ~6'b0;
+		else if(display_timer) display_timer = display_timer - 6'b1;
+		else display_timer = 6'b0;
+	end
 
    // clock divider
    always @ (posedge clk_50mhz)
      begin
-	div = div + 1;
+	div = div + 20'b1;
      end
 
-   assign clk_12hz = div[21];
+	always @ (posedge clk_50mhz)
+	begin
+		pwm_count[7] = 1'b0;
+		pwm_count = pwm_count + count;
+	end
+	  
+   assign clk_slow = div[19];
 
 endmodule
